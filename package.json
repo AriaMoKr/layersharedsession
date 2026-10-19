@@ -5,6 +5,7 @@
   "keywords": ["webxr", "threejs", "multiplayer", "webrtc", "trystero", "p2p"],
   "type": "module",
   "private": true,
+  "license": "MIT",
   "engines": {
     "node": ">=20"
   },

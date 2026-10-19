@@ -111,3 +111,7 @@ The grip button in VR, or **Wave** in the panel, makes your avatar bob on the ot
   The Nostr relays see that someone is in the room, but not the content.
 - **Relays:** the public relays are community-run; any of them may be down on a given day. Trystero
   uses five of them at a time.
+
+## License
+
+[MIT](LICENSE).
