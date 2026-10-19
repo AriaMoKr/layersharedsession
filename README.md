@@ -98,6 +98,35 @@ The grip button in VR, or **Wave** in the panel, makes your avatar bob on the ot
 - `window.__lss` gives scripts the session, the scene and `tick(dt, n)` to drive frames in a hidden
   browser.
 
+## Using the layer in another site
+
+A site installs this repository from GitHub at a pinned commit, along with Trystero:
+
+```json
+"dependencies": {
+  "layersharedsession": "github:AriaMoKr/layersharedsession#<commit>",
+  "trystero": "0.26.0"
+}
+```
+
+The package holds only the layer: `session.js`, `pose.js`, `shared.js`, `identity.js` and
+`room.js`. They are also importable in Node as `layersharedsession/room.js` and so on, for
+tests. The site copies them into its own vendor folder, as it does three.js, and maps the bare
+names in its import map:
+
+```json
+{"imports":{
+  "trystero": "./vendor/trystero-nostr/index.mjs",
+  "@trystero-p2p/core": "./vendor/trystero-core/index.mjs",
+  "@noble/secp256k1": "./vendor/noble-secp256k1/index.js",
+  "layersharedsession/": "./vendor/layersharedsession/"
+}}
+```
+
+The member id and name live in `sessionStorage` and `localStorage` under `lss.`. Every site on
+`ariamokr.github.io` shares them, so a visitor keeps the same identity going from one site to the
+next in the same tab.
+
 ## Limits
 
 - **Room size:** every visitor connects to every other, so this suits a handful of people.

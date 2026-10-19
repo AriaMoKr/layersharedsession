@@ -3,10 +3,14 @@
 // Runs after `npm install` (postinstall). The import map in each page maps the bare names
 // (three, trystero, @trystero-p2p/core, @noble/secp256k1) to these copies.
 import { copyFileSync, mkdirSync, existsSync, readdirSync, rmSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+// Installed as another project's dependency (hallway's, say), this package's own dependencies are
+// hoisted beside it rather than inside it, and the test page isn't served: nothing to copy.
+if (root.split(sep).includes('node_modules')) process.exit(0);
 const modules = join(root, 'node_modules');
 const out = join(root, 'public', 'vendor');
 

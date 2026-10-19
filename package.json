@@ -9,13 +9,31 @@
   "engines": {
     "node": ">=20"
   },
+  "exports": {
+    "./session.js": "./public/js/session.js",
+    "./pose.js": "./public/js/pose.js",
+    "./shared.js": "./public/js/shared.js",
+    "./identity.js": "./public/js/identity.js",
+    "./room.js": "./public/js/room.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "public/js/session.js",
+    "public/js/pose.js",
+    "public/js/shared.js",
+    "public/js/identity.js",
+    "public/js/room.js",
+    "tools/vendor.mjs"
+  ],
   "scripts": {
     "postinstall": "node tools/vendor.mjs",
     "start": "node tools/serve.mjs",
     "test": "node --test \"test/*.test.js\""
   },
   "dependencies": {
-    "three": "0.186.1",
     "trystero": "0.26.0"
+  },
+  "devDependencies": {
+    "three": "0.186.1"
   }
 }
