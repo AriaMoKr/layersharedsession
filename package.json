@@ -1,0 +1,20 @@
+{
+  "name": "layersharedsession",
+  "version": "0.1.0",
+  "description": "A test of a shared-session layer for three.js WebXR sites: visitors in the same room see each other, peer to peer over WebRTC with Trystero, with no server of its own.",
+  "keywords": ["webxr", "threejs", "multiplayer", "webrtc", "trystero", "p2p"],
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "postinstall": "node tools/vendor.mjs",
+    "start": "node tools/serve.mjs",
+    "test": "node --test \"test/*.test.js\""
+  },
+  "dependencies": {
+    "three": "0.186.1",
+    "trystero": "0.26.0"
+  }
+}

@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
+<meta name="description" content="A test of a shared session for three.js WebXR sites: everyone with the same link sees each other, peer to peer, with no server of its own.">
+<title>Shared session test · Page A</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='22' cy='32' r='14' fill='%236ea0ff'/%3E%3Ccircle cx='42' cy='32' r='14' fill='%235fd39a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">{"imports":{"three":"./vendor/three/three.module.js","trystero":"./vendor/trystero-nostr/index.mjs","@trystero-p2p/core":"./vendor/trystero-core/index.mjs","@noble/secp256k1":"./vendor/noble-secp256k1/index.js"}}</script>
+</head>
+<body data-page="page-a">
+<div id="app"></div>
+<section id="panel" aria-label="Session"></section>
+<noscript><p class="noscript">This test needs JavaScript.</p></noscript>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
