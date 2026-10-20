@@ -1,7 +1,7 @@
-// A static file server for public/, for development: node tools/serve.mjs [--port 8090] [--host 0.0.0.0]
+// A static file server for public/, for development: node tools/serve.mjs [--port 8092] [--host 0.0.0.0]
 // Trystero encrypts its handshakes with crypto.subtle, which needs a secure context: http://localhost
 // counts as one, a LAN address over plain http does not. A headset or phone on USB can reach it over
-// `adb reverse tcp:8090 tcp:8090`; otherwise publish public/ somewhere with https.
+// `adb reverse tcp:8092 tcp:8092`; otherwise publish public/ somewhere with https.
 import { createServer } from 'node:http';
 import { createReadStream, statSync } from 'node:fs';
 import { extname, join, normalize, sep, dirname } from 'node:path';
@@ -13,7 +13,7 @@ const opt = (name, fallback) => {
   const i = args.indexOf(`--${name}`);
   return i >= 0 && args[i + 1] ? args[i + 1] : fallback;
 };
-const port = Number(opt('port', 8090));
+const port = Number(opt('port', 8092));
 const host = opt('host', 'localhost');
 
 const TYPES = {

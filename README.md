@@ -7,8 +7,9 @@ same link sees everyone else: where they are, which way they look, and their han
 can share values (the test page has a switch anyone can flip) and send each other messages.
 
 [Hallway](https://ariamokr.github.io/hallway/) uses it for its shared sessions: "Together" on its
-control panel. [vrlbry](https://ariamokr.github.io/vrlbry/) and
-[breadboard](https://ariamokr.github.io/breadboard/) don't use it yet.
+control panel. Two of the places behind its doors, [vrlbry](https://ariamokr.github.io/vrlbry/)
+and [Outside](https://ariamokr.github.io/outside/), join the same session, so a room carries through
+the doors. [Breadboard](https://ariamokr.github.io/breadboard/) doesn't use it yet.
 
 It runs peer to peer over WebRTC with [Trystero](https://github.com/dmotz/trystero). Trystero's
 default strategy finds the other visitors through public Nostr relays, so there is no server to
@@ -54,11 +55,11 @@ Times in the log are seconds since the page began loading. Measurements are in y
 
 ```bash
 npm install     # three.js and Trystero, copied into public/vendor/
-npm start       # http://localhost:8090/
+npm start       # http://localhost:8092/
 npm test
 ```
 
-Open http://localhost:8090/. The page makes up a room (`?room=k3vd-q8hn`) and puts it in the
+Open http://localhost:8092/. The page makes up a room (`?room=k3vd-q8hn`) and puts it in the
 address. **Copy invite link** copies that address; open it anywhere to join the same room.
 
 ### On one PC
@@ -70,10 +71,10 @@ per tab, and the last one entered is the default for new tabs.
 ### On other devices
 
 Trystero encrypts its handshakes with the browser's `crypto.subtle`, which only works on secure
-pages: https, or `http://localhost`. A phone opening `http://192.168.x.x:8090` will not work. Instead:
+pages: https, or `http://localhost`. A phone opening `http://192.168.x.x:8092` will not work. Instead:
 
-- **Quest or an Android phone over adb:** `adb reverse tcp:8090 tcp:8090`, then open
-  `http://localhost:8090/?room=…` on the device. Only the page loads that way; the WebRTC
+- **Quest or an Android phone over adb:** `adb reverse tcp:8092 tcp:8092`, then open
+  `http://localhost:8092/?room=…` on the device. Only the page loads that way; the WebRTC
   connection still goes over the network, as it would for anyone else. On Windows, start the
   server with `npm start -- --host 127.0.0.1`: `localhost` there can mean IPv6 only, which the
   headset can't reach.
@@ -87,9 +88,9 @@ room alone, and both use the same app id, so the same relays.
 
 ### Watching a site's session
 
-Hallway uses the test page's app id (`ariamokr-layersharedsession-test`). So the test page, opened
-with a hallway room (`https://ariamokr.github.io/layersharedsession/?room=<the room>`), joins that
-session. It lists everyone in it with their round trips and the page they are on ("on hallway"),
+Hallway, vrlbry and Outside use the test page's app id (`ariamokr-layersharedsession-test`). So
+the test page, opened with a hallway room
+(`https://ariamokr.github.io/layersharedsession/?room=<the room>`), joins that session. It lists everyone in it with their round trips and the page they are on ("on hallway"),
 and logs who comes and goes. It counts as a visitor on another page, so hallway shows it as
 "elsewhere".
 

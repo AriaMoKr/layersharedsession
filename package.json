@@ -3,6 +3,14 @@
   "version": "0.1.0",
   "description": "A test of a shared-session layer for three.js WebXR sites: visitors in the same room see each other, peer to peer over WebRTC with Trystero, with no server of its own.",
   "keywords": ["webxr", "threejs", "multiplayer", "webrtc", "trystero", "p2p"],
+  "homepage": "https://ariamokr.github.io/layersharedsession/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AriaMoKr/layersharedsession.git"
+  },
+  "bugs": {
+    "url": "https://github.com/AriaMoKr/layersharedsession/issues"
+  },
   "type": "module",
   "private": true,
   "license": "MIT",
