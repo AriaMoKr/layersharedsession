@@ -71,25 +71,24 @@ export function createControls({ renderer, camera, rig, dom, onSelect, onSqueeze
   addEventListener('keyup', (e) => keys.delete(e.code));
   addEventListener('blur', () => keys.clear());
 
-  // XR controllers: the target ray (for selecting) and the grip (the hand's pose).
-  const hands = { left: null, right: null }; // handedness → { controller, grip, source }
+  // XR controllers: their target ray selects, and is the hand in this visitor's pose (avatars.js
+  // readPose, as the sites send it).
+  const hands = []; // { controller, source }
   for (let i = 0; i < 2; i++) {
     const controller = renderer.xr.getController(i);
-    const grip = renderer.xr.getControllerGrip(i);
     const line = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -1)]),
       new THREE.LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.6 }),
     );
     line.scale.z = 4;
     controller.add(line);
-    rig.add(controller, grip);
-    const entry = { controller, grip, source: null };
+    rig.add(controller);
+    const entry = { controller, source: null };
+    hands.push(entry);
     controller.addEventListener('connected', (e) => {
       entry.source = e.data;
-      if (e.data.handedness === 'left' || e.data.handedness === 'right') hands[e.data.handedness] = entry;
     });
     controller.addEventListener('disconnected', () => {
-      for (const side of ['left', 'right']) if (hands[side] === entry) hands[side] = null;
       entry.source = null;
     });
     controller.addEventListener('select', () => {
@@ -215,13 +214,7 @@ export function createControls({ renderer, camera, rig, dom, onSelect, onSqueeze
       clampToFloor(rig.position);
     },
 
-    /** The world pose of a tracked hand ('left' or 'right') into position and quaternion, or false. */
-    handPose(side, position, quaternion) {
-      const h = hands[side];
-      if (!renderer.xr.isPresenting || !h || !h.source || !h.grip.visible) return false;
-      h.grip.getWorldPosition(position);
-      h.grip.getWorldQuaternion(quaternion);
-      return true;
-    },
+    /** The XR controllers, { controller, source }, for readPose. */
+    hands,
   };
 }

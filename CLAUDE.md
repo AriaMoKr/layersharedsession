@@ -12,12 +12,13 @@ API, and how a site takes it up.
 
 The repo is two things:
 
-- **The layer:** five modules in `public/js/` (`session.js`, `pose.js`, `shared.js`,
-  `identity.js`, `room.js`). With `tools/vendor.mjs` they are the whole npm package (`files` and
-  `exports` in package.json). Sites install it from GitHub pinned to a commit
-  (`github:AriaMoKr/layersharedsession#<commit>`): the Hallway (https://ariamokr.github.io/hallway/,
-  AriaMoKr/hallway, `together.js`, page `hallway`), and behind its doors vrlbry (page `vrlbry`) and
-  Outside (page `outside`). Each site's package.json names its commit.
+- **The layer:** six modules in `public/js/` (`session.js`, `pose.js`, `shared.js`,
+  `identity.js`, `room.js`, `avatars.js`), each with a `.d.ts` beside it. With `tools/vendor.mjs`
+  they are the whole npm package (`files` and `exports` in package.json). Sites install it from
+  GitHub pinned to a tag or commit (`github:AriaMoKr/layersharedsession#v0.2.0`): the Hallway
+  (https://ariamokr.github.io/hallway/, AriaMoKr/hallway, `together.js`, page `hallway`), and
+  behind its doors vrlbry (page `vrlbry`; music is a fork of it), Outside (page `outside`) and
+  Breadboard (in TypeScript, `src/vr/together.ts`). Each site's package.json names its pin.
 - **The test page:** two pages in one room (`index.html` is `page-a`, `b.html` is `page-b`) with a
   door between them, a shared switch, a wave and a log.
 
@@ -30,6 +31,7 @@ AriaMoKr/layersharedsession by `.github/workflows/pages.yml` (`npm ci`, `npm tes
 npm install   # postinstall: tools/vendor.mjs copies three and Trystero (@trystero-p2p/core, @trystero-p2p/nostr, @noble/secp256k1) into public/vendor/ (gitignored); does nothing when installed as a dependency
 npm start     # tools/serve.mjs: public/ on http://localhost:8092/ (IPv6 only on Windows; for a Quest or phone over adb reverse: npm start -- --host 127.0.0.1)
 npm test      # node --test "test/*.test.js"
+npm run types # tools/types.mjs: the .d.ts beside each exported module, from its JSDoc (tsconfig.json); commit them
 ```
 
 `.claude/launch.json` serves it on 8092. The sibling repos use 8088 to 8091 (hallway and its Quest
@@ -54,6 +56,11 @@ server, outside and its Quest server), so they can all run side by side.
   in `sessionStorage`, then `localStorage` as the default for new tabs (`lss.name`). Every site on
   ariamokr.github.io shares these keys. `colorFor` turns a member id into a colour through `hash`
   (FNV-1a).
+- `avatars.js`: the sites' avatars (three, unlit, shaded faces): `createAvatars({ parent, font,
+  ground })` gives `show`, `drop`, `wave`, `place(now, peers, isHere)`, `clear`, `get`, `list` and
+  `group`; `readPose(camera, hands, out)` is this visitor's pose from the camera and the XR
+  controllers. The geometry is made with the first avatar. It came from the hallway's
+  `together.js`, which the sites had copied; keep it what they draw.
 - `room.js`: pure. Room ids like `k3vd-q8hn` (`isRoom`, `newRoom`), `roomFromUrl`, `withRoom`, and
   `linkInRoom` for a link to another page in the same room.
 - `shared.js`: pure. The last write wins by a Lamport clock, then by member id; `snapshot` and
@@ -63,9 +70,13 @@ server, outside and its Quest server), so they can all run side by side.
   `location.assign`; leave on `pagehide` too, and reload when the back/forward cache restores it),
   and the frame loop. `pages.js` has the two pages and `APP_ID`
   (`ariamokr-layersharedsession-test`), which the sites use too, so the test page can watch their
-  rooms. `world.js` builds the scene, `avatars.js` draws the others (head, hands, name label, the
-  wave's bob), `controls.js` moves the viewer (desktop, touch, XR), and `ui.js` is the panel and
-  the log.
+  rooms. `world.js` builds the scene, the layer's `avatars.js` draws the others, `controls.js`
+  moves the viewer (desktop, touch, XR; `hands` for readPose), and `ui.js` is the panel and the
+  log.
+- `tools/types.mjs` makes the `.d.ts` with TypeScript's API rather than `tsc`, which would take
+  the last ones as inputs. `test/types.test.js` checks they're in step, and type-checks
+  `test/types/site.ts`, a strict TypeScript site written as breadboard uses the layer, against
+  them through the package's own `exports`.
 
 ## Conventions
 
@@ -73,14 +84,21 @@ server, outside and its Quest server), so they can all run side by side.
   commit in the same room, so a change to the messages must still read and answer the old ones.
   Keep exports and option names compatible, or change every site with them. After the layer
   changes, push, then move each site's pinned commit and run `npm install` there (README, "Using the
-  layer in another site"). Only the five modules, `tools/vendor.mjs` and package.json ship to the
-  sites; README, the test page and `tools/serve.mjs` don't.
-- The pure modules import neither three nor Trystero, and `test/` covers them in Node.
+  layer in another site"). Tag each version the sites take (`v0.2.0`, with package.json's
+  `version`). Only the six modules, their `.d.ts`, `tools/vendor.mjs` and package.json ship to the
+  sites; README, the test page and the other tools don't.
+- The JSDoc is the source of the types. After changing an exported module's signatures or
+  typedefs, run `npm run types` and commit the `.d.ts` with it. Typedefs go before a statement
+  that isn't exported, or TypeScript repeats them as comments above the next export.
+- `three` is a peer dependency (r152 or later), for `avatars.js`; the site supplies it. The pure
+  modules import neither three nor Trystero. `test/` covers them in Node, and `avatars.js` too
+  (three runs in Node; a stand-in canvas takes the labels).
   `test/site.test.js` checks the pages, the import maps, the vendored modules' imports, and that
   client URLs stay relative (the site lives under `/layersharedsession/`). `session.js` has no Node
   test; check it in the browser.
-- Quest 3 is the sites' performance target. Nothing on the per-frame path allocates except
-  `tick`, which copies the pose when it sends one (at most 15 times a second).
+- Quest 3 is the sites' performance target. Nothing on the per-frame path (`readPose`, `setPose`,
+  `tick`, `place`, `samplePose`) allocates except `tick`, which copies the pose when it sends one
+  (at most 15 times a second).
 - Trystero needs `crypto.subtle`, so a secure context: `http://localhost` or https. A LAN address
   over plain http will not connect.
 - Scripted testing: `window.__lss` (session, renderer, scene, camera, rig, controls, avatars, world,

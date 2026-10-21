@@ -5,21 +5,30 @@
 // as position (x, y, z, metres, world space) and orientation (quaternion x, y, z, w). A hand that
 // isn't tracked (no controller, or not in VR) has NaN for its x. 84 bytes a message.
 
+/** The parts of a pose, by index. @type {{ readonly head: 0, readonly left: 1, readonly right: 2 }} */
 export const PART = { head: 0, left: 1, right: 2 };
 export const PART_LENGTH = 7;
 export const POSE_LENGTH = 3 * PART_LENGTH;
 
-/** A pose with nothing tracked. */
+/** A pose with nothing tracked. @returns {Pose} */
 export function emptyPose() {
   return new Float32Array(POSE_LENGTH).fill(NaN);
 }
 
+/** Whether a part is tracked. @param {Pose} pose @param {number} part a PART @returns {boolean} */
 export function hasPart(pose, part) {
   return !Number.isNaN(pose[part * PART_LENGTH]);
 }
 
-/** Sets one part from a position {x, y, z} and quaternion {x, y, z, w} (three's Vector3 and
- * Quaternion fit), or clears it when position is null. */
+/**
+ * Sets one part from a position {x, y, z} and quaternion {x, y, z, w} (three's Vector3 and
+ * Quaternion fit), or clears it when position is null. Returns the pose.
+ * @param {Pose} pose
+ * @param {number} part  a PART
+ * @param {Position|null} position
+ * @param {Orientation} [quaternion]  needed with a position
+ * @returns {Pose}
+ */
 export function setPart(pose, part, position, quaternion) {
   const o = part * PART_LENGTH;
   if (!position) {
@@ -36,6 +45,17 @@ export function setPart(pose, part, position, quaternion) {
   return pose;
 }
 
+/**
+ * A pose: POSE_LENGTH numbers, the head, left hand and right hand, each a position and a quaternion.
+ * @typedef {Float32Array} Pose
+ */
+/**
+ * The poses received from one visitor, oldest first, by the receiver's clock (ms).
+ * @typedef {{ capacity: number, samples: { t: number, pose: Pose }[] }} PoseBuffer
+ */
+/** @typedef {{ x: number, y: number, z: number }} Position  three's Vector3 fits */
+/** @typedef {{ x: number, y: number, z: number, w: number }} Orientation  three's Quaternion fits */
+
 /** The angle in radians between two unit quaternions stored in arrays at the given offsets. */
 function quatAngle(a, ao, b, bo) {
   const dot = a[ao] * b[bo] + a[ao + 1] * b[bo + 1] + a[ao + 2] * b[bo + 2] + a[ao + 3] * b[bo + 3];
@@ -46,6 +66,11 @@ function quatAngle(a, ao, b, bo) {
  * Whether `next` differs from `prev` (the last pose sent, or null) enough to send: a part appeared
  * or went, a position moved more than `posEps` metres on an axis, or an orientation turned more
  * than `rotEps` radians. The defaults (2 mm, about half a degree) are below what anyone notices.
+ * @param {Pose|null} prev
+ * @param {Pose} next
+ * @param {number} [posEps]
+ * @param {number} [rotEps]
+ * @returns {boolean}
  */
 export function poseChanged(prev, next, posEps = 0.002, rotEps = 0.01) {
   if (!prev) return true;
@@ -63,8 +88,12 @@ export function poseChanged(prev, next, posEps = 0.002, rotEps = 0.01) {
   return false;
 }
 
-/** A pose received over the wire (an ArrayBuffer or a typed array) as a Float32Array copy of
- * POSE_LENGTH numbers, or null when it isn't one. */
+/**
+ * A pose received over the wire (an ArrayBuffer or a typed array) as a Float32Array copy of
+ * POSE_LENGTH numbers, or null when it isn't one.
+ * @param {unknown} data
+ * @returns {Pose|null}
+ */
 export function decodePose(data) {
   let bytes;
   if (data instanceof ArrayBuffer) bytes = data;
@@ -87,12 +116,17 @@ export function decodePose(data) {
 
 export const INTERP_DELAY_MS = 100;
 
-/** A buffer of the last `capacity` poses received from one visitor. */
+/** A buffer of the last `capacity` poses received from one visitor. @param {number} [capacity] @returns {PoseBuffer} */
 export function createBuffer(capacity = 8) {
   return { capacity, samples: [] };
 }
 
-/** Adds a pose received at time `t` (ms). Out-of-order times replace the newest. */
+/**
+ * Adds a pose received at time `t` (ms). Out-of-order times replace the newest.
+ * @param {PoseBuffer} buffer
+ * @param {number} t
+ * @param {Pose} pose
+ */
 export function pushSample(buffer, t, pose) {
   const s = buffer.samples;
   if (s.length && t <= s[s.length - 1].t) s[s.length - 1] = { t: s[s.length - 1].t, pose };
@@ -100,7 +134,7 @@ export function pushSample(buffer, t, pose) {
   if (s.length > buffer.capacity) s.shift();
 }
 
-/** The latest pose received, or null. */
+/** The latest pose received, or null. @param {PoseBuffer} buffer @returns {Pose|null} */
 export function latestPose(buffer) {
   const s = buffer.samples;
   return s.length ? s[s.length - 1].pose : null;
@@ -137,7 +171,11 @@ function slerpInto(out, o, a, b, t) {
  * The pose to draw at time `t` (ms, the receiver's clock, already moved back by the delay) into
  * `out`, which it returns; null when nothing has arrived. Before the first sample it holds the
  * first, after the last it holds the last (no guessing ahead). A hand that is tracked on only one
- * side of the blend takes the newer sample's state.
+ * side of the blend takes the newer sample's state. Allocates nothing.
+ * @param {PoseBuffer} buffer
+ * @param {number} t
+ * @param {Pose} out
+ * @returns {Pose|null}
  */
 export function samplePose(buffer, t, out) {
   const s = buffer.samples;

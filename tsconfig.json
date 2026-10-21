@@ -1,0 +1,25 @@
+{
+  // The layer's types: `npm run types` writes a .d.ts beside each module the package exports, from
+  // its JSDoc. They are committed; test/types.test.js checks they are in step.
+  "compilerOptions": {
+    "allowJs": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM"],
+    "types": [],
+    "strict": true,
+    "skipLibCheck": true,
+    "newLine": "lf"
+  },
+  "files": [
+    "public/js/session.js",
+    "public/js/pose.js",
+    "public/js/shared.js",
+    "public/js/identity.js",
+    "public/js/room.js",
+    "public/js/avatars.js"
+  ]
+}

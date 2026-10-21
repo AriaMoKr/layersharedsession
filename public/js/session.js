@@ -21,6 +21,85 @@ import { createShared, getValue, mergeSnapshot, setLocal, snapshot } from './sha
 import { cleanName, colorFor, newMemberId, saveMemberId } from './identity.js';
 
 export const POSE_HZ = 15;
+
+/**
+ * Another visitor in the room. Until their hello arrives, `memberId`, `name` and `page` are null and
+ * `color` is grey. Times are the session's clock (`now`).
+ * @typedef {object} Peer
+ * @property {string} peerId  Trystero's id for their page load
+ * @property {string|null} memberId  lasts as long as their tab (identity.js)
+ * @property {string|null} name
+ * @property {string} color  '#rrggbb'
+ * @property {string|null} page  the page they are on, such as 'hallway'
+ * @property {number} connectedAt  when WebRTC came up
+ * @property {number|null} helloAt  when their hello arrived
+ * @property {number|null} backAfter  how long they were gone, when they came back within 10 minutes
+ * @property {number|null} rtt  the round trip in ms, every 2 s
+ * @property {number} poses  how many poses have arrived
+ * @property {import('./pose.js').PoseBuffer} buffer  their recent poses, for samplePose
+ */
+/**
+ * This visitor, as the others see them.
+ * @typedef {{ selfId: string, memberId: string, name: string, color: string, page: string }} Self
+ */
+/** @typedef {{ open: number, total: number }} Relays  the Nostr relays connected */
+/** @typedef {{ t: number, kind: 'info'|'error'|'measure', text: string }} LogEntry */
+/**
+ * A shared value that changed. `from` is the peer it came from (null for this visitor's own write);
+ * `initial` is true for the values a newcomer receives on arrival.
+ * @typedef {{ key: string, value: unknown, by: string, from: Peer|null, initial: boolean }} SharedChange
+ */
+/**
+ * The events and what their listeners get.
+ * @typedef {object} SessionEvents
+ * @property {Peer} join  a peer said hello
+ * @property {Peer} update  a peer renamed, moved page, or has a new round trip
+ * @property {Peer} leave
+ * @property {Peer} pose  a peer's pose arrived
+ * @property {SharedChange} shared
+ * @property {Self} self  this visitor's name or member id changed
+ * @property {Relays} relays
+ * @property {LogEntry} log  a listener added late gets the log so far
+ */
+/**
+ * A channel's named messages: `send` to all, or to one peer; `on` listens, and returns a function
+ * that stops listening.
+ * @template [T=unknown]
+ * @typedef {object} Channel
+ * @property {(data: T, peerId?: string) => Promise<unknown>} send
+ * @property {(fn: (data: T, peer: Peer) => void) => () => void} on
+ */
+/**
+ * A session joined (joinSession).
+ * @typedef {object} Session
+ * @property {Self} self
+ * @property {string} room
+ * @property {Map<string, Peer>} peers  by Trystero peer id
+ * @property {Relays} relays
+ * @property {import('./shared.js').Shared} shared
+ * @property {number|null} firstPeerAt  when the first visitor said hello
+ * @property {<K extends keyof SessionEvents>(type: K, fn: (detail: SessionEvents[K]) => void) => () => void} on
+ * @property {(pose: Float32Array) => void} setPose  this visitor's pose, every frame
+ * @property {() => void} tick  sends the pose when it changed, at most POSE_HZ a second; every frame
+ * @property {(name: string) => void} setName  renames this visitor for everyone
+ * @property {<T = unknown>(key: string, fallback?: T) => T} get  a shared value
+ * @property {(key: string, value: unknown) => void} set  writes a shared value for everyone
+ * @property {<T = unknown>(name: string) => Channel<T>} channel
+ * @property {() => Promise<unknown>} leave  leaves the room, so the others see it at once
+ */
+/**
+ * What joinSession takes. `config` is passed on to Trystero's joinRoom (relayUrls, turnConfig, …).
+ * @typedef {object} JoinOptions
+ * @property {string} appId  the same for every site that shares rooms
+ * @property {string} room
+ * @property {string} page  this page's id in the session: 1–32 of a–z, 0–9 and '-'
+ * @property {import('./identity.js').Identity} identity
+ * @property {import('./identity.js').StorageLike|null} [storage]
+ * @property {() => number} [now]
+ * @property {(page: string) => string} [pageName]
+ * @property {Record<string, unknown>} [config]
+ */
+
 const PING_MS = 2000;
 const RELAY_CHECK_MS = 1000;
 // How long a visitor who left is remembered, to tell "back after 3.2 s" when they return.
@@ -36,6 +115,8 @@ const PAGE_RE = /^[a-z0-9-]{1,32}$/;
  * replaced member id (sessionStorage). `now` is the clock for every time the session reports: by
  * default performance.now(), the milliseconds since this page began loading. `pageName` turns a
  * page id into words for the log.
+ * @param {JoinOptions} options
+ * @returns {Session}
  */
 export function joinSession({ appId, room, page, identity, storage = null, now = () => performance.now(), pageName = (id) => id, config = {} }) {
   const listeners = new Map();

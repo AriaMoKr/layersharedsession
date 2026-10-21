@@ -44,6 +44,8 @@ rate with several visitors.
 - **Shared values.** The switch is the last value written. "Last" is decided by a counter, not by
   the time of day, so devices with different clocks still agree. A visitor who arrives later gets
   every value.
+- **Avatars.** The other visitors are drawn by the layer's `avatars.js`, exactly as on the
+  sites, and bob when they wave.
 - **Changing page.** The door goes to the other page in the same room, as one of hallway's doors
   goes to another site. The page leaves the room before it unloads. The next page joins again, and
   the others recognise the visitor coming back by a member id kept in the tab's `sessionStorage`.
@@ -106,8 +108,9 @@ The grip button in VR, or **Wave** in the panel, makes your avatar bob on the ot
 
 ## The layer
 
-Five modules in `public/js/`. Only `session.js` needs Trystero; the other four are pure and tested
-in Node.
+Six modules in `public/js/`, each with its types beside it (`.d.ts`). Only `session.js` needs
+Trystero, and only `avatars.js` needs three, which the site supplies (a peer dependency, three
+r152 or later). The other four are pure. All six are tested in Node.
 
 ### `session.js`
 
@@ -147,6 +150,60 @@ buffer }`. Until its hello arrives, `memberId`, `name` and `page` are null and `
 `backAfter` is set when it came back after leaving, and `buffer` holds its recent poses for
 `samplePose`.
 
+### `avatars.js`
+
+The other visitors as every site draws them: a head with a dark visor on its front, a hand per
+tracked controller, a ring on the floor and the name in a pill of their colour. A wave bobs the
+head and lifts the name for 1.2 s. The materials are unlit with the faces shaded in, so the
+avatars look the same with real-time lights or baked ones.
+
+```js
+import { createAvatars, readPose } from 'layersharedsession/avatars.js';
+
+const avatars = createAvatars({
+  parent: scene,
+  font,      // the labels' font family (optional; LABEL_FONT, a system sans-serif, by default)
+  ground,    // (x, z) => the ground's height, for the rings (optional; level at 0 by default)
+});
+session.on('join', (p) => avatars.show(p));
+session.on('update', (p) => avatars.show(p));        // renamed or recoloured
+session.on('leave', (p) => avatars.drop(p.peerId));
+session.channel('wave').on((_, p) => avatars.wave(p.peerId, performance.now()));
+
+const pose = emptyPose();
+const isHere = (peer) => peer.page === 'hallway';   // made once, not every frame
+function frame(now) {
+  session.setPose(readPose(camera, renderer.xr.isPresenting ? hands : null, pose));
+  session.tick();
+  avatars.place(now, session.peers, isHere);
+}
+```
+
+| | |
+|---|---|
+| `show(peer)` | Makes the peer's avatar, or relabels and recolours it; returns it. |
+| `drop(peerId)`, `clear()` | Removes one avatar, or all, and frees their materials and labels. |
+| `wave(peerId, now)` | Starts the bob; false when there is no such avatar. |
+| `place(now, peers, isHere)` | Every frame: puts each avatar where its peer was 100 ms ago (`samplePose`), and hides those for which `isHere(peer, avatar)` is false. |
+| `get(peerId)`, `list`, `group` | An avatar, all of them, and the group they're in (`visitors`). |
+| `readPose(camera, hands, out)` | This visitor's pose: the head from the camera, and in VR each of `hands` (`{ controller, source }`, as `renderer.xr.getController` gives them) by its handedness. |
+
+An avatar is `{ peerId, group, head, hands, ring, label, material, ringMaterial, name, color, page,
+waveAt }`. `show` sets `page` only when it makes the avatar, so a site can compare it with the
+peer's to tell when someone came onto its page; a site may keep its own fields on the avatar too.
+vrlbry's `isHere` also asks whether the peer is in the same room of the library, by a key it keeps
+on the avatar. `place` and `readPose` allocate nothing, and the geometry is made with the first
+avatar, so a page that never meets anyone builds none.
+
+### Types
+
+Each module has a `.d.ts` beside it, made by TypeScript from the module's JSDoc and committed:
+`npm run types` (`tools/types.mjs`) writes them, and `npm test` fails when they are out of step. A
+TypeScript site finds them through package.json's `exports` (`moduleResolution` `bundler` or
+`node16`). They name the layer's shapes: `Session`, `Peer`, `SessionEvents`, `Channel`,
+`Identity`, `PoseBuffer`, `Avatar`, `Hand` and so on. `avatars.d.ts` refers to three's types, so a
+site in TypeScript also needs `@types/three`.
+
 ### The pure modules
 
 - `pose.js`: a pose is a `Float32Array` of 21 numbers: the head, then the left and right hands,
@@ -165,16 +222,17 @@ buffer }`. Until its hello arrives, `memberId`, `name` and `page` are null and `
 
 As hallway does (its `together.js`, `tools/vendor.mjs` and `index.html`):
 
-1. **Install it** from GitHub at a pinned commit, with Trystero:
+1. **Install it** from GitHub at a tagged version (or a commit), with Trystero and three:
 
    ```json
    "dependencies": {
-     "layersharedsession": "github:AriaMoKr/layersharedsession#<commit>",
+     "layersharedsession": "github:AriaMoKr/layersharedsession#v0.2.0",
+     "three": "0.186.1",
      "trystero": "0.26.0"
    }
    ```
 
-   The package holds only the layer's five modules. In Node they import as
+   The package holds only the layer's six modules and their types. In Node they import as
    `layersharedsession/room.js` and so on, for tests. `npm ci` fetches it over https, so a CI
    runner needs no SSH key (checked with SSH disabled and an empty npm cache). npm 11 warns that
    the package has an install script not covered by `allowScripts`; it is harmless, since the
@@ -183,7 +241,7 @@ As hallway does (its `together.js`, `tools/vendor.mjs` and `index.html`):
 2. **Vendor it** like three.js: copy `layersharedsession/public/js/*.js`,
    `@trystero-p2p/core/dist/*.mjs`, `@trystero-p2p/nostr/dist/index.mjs` and
    `@noble/secp256k1/index.js` into the site's vendor folder. Then map the bare names in its
-   import map:
+   import map (`avatars.js` imports `three`, which the import map already has):
 
    ```json
    {"imports":{
@@ -207,16 +265,19 @@ As hallway does (its `together.js`, `tools/vendor.mjs` and `index.html`):
 6. **Leave before going.** Call `leave()` before navigating away, and on `pagehide`. Rejoin if the
    page comes back from the back/forward cache.
 
-7. **Send and draw every frame:** `setPose` and `tick`, then place each peer from `samplePose`.
-   Draw only the peers whose `page` is this page.
+7. **Send and draw every frame:** `readPose`, `setPose` and `tick`, then `avatars.place`. Draw only
+   the peers whose `page` is this page.
 
-When the layer changes, push it, then move each site's pinned commit and run `npm install` there.
+When the layer changes, push it and tag a version (`v0.2.0`), then move each site's pin to it and
+run `npm install` there. Visitors on sites pinned at different versions meet in the same rooms, so
+the messages between them have to stay compatible.
 
 ## How the test page fits together
 
 - `main.js` runs both pages (`<body data-page>`): the room, the session, the frame loop.
-- `world.js` builds the scene, `avatars.js` draws the other visitors, `controls.js` moves the
-  viewer, `ui.js` is the panel, and `pages.js` defines the two pages and the app id (`APP_ID`).
+- `world.js` builds the scene, `controls.js` moves the viewer, `ui.js` is the panel, and
+  `pages.js` defines the two pages and the app id (`APP_ID`). The other visitors are the layer's
+  `avatars.js`, as on the sites.
 - Each page's import map points `three`, `trystero`, `@trystero-p2p/core` and `@noble/secp256k1`
   at `public/vendor/`, which `tools/vendor.mjs` fills on `npm install`. There is no bundler.
 - `window.__lss` gives scripts the session, the scene and `tick(dt, n)` to drive frames in a hidden

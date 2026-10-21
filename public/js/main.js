@@ -5,10 +5,10 @@ import * as THREE from 'three';
 import { joinSession } from './session.js';
 import { linkInRoom, newRoom, roomFromUrl, withRoom } from './room.js';
 import { hash, loadIdentity, saveName } from './identity.js';
-import { emptyPose, PART, setPart } from './pose.js';
+import { emptyPose } from './pose.js';
 import { APP_ID, pageInfo, pageTitle } from './pages.js';
 import { buildWorld, PEDESTAL } from './world.js';
-import { createAvatars } from './avatars.js';
+import { createAvatars, readPose } from './avatars.js';
 import { createControls } from './controls.js';
 import { createUi } from './ui.js';
 
@@ -44,7 +44,7 @@ const rig = new THREE.Group();
 rig.add(camera);
 scene.add(rig);
 const world = buildWorld(scene, page, other);
-const avatars = createAvatars(scene);
+const avatars = createAvatars({ parent: scene });
 
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
@@ -80,15 +80,15 @@ session.on('self', (self) => {
   refreshSwitch();
 });
 session.on('join', (p) => {
-  avatars.update(p);
+  avatars.show(p);
   refreshPeers();
 });
 session.on('update', (p) => {
-  avatars.update(p);
+  avatars.show(p);
   refreshPeers();
 });
 session.on('leave', (p) => {
-  avatars.remove(p.peerId);
+  avatars.drop(p.peerId);
   refreshPeers();
 });
 session.on('shared', ({ key, value, by, from, initial }) => {
@@ -188,23 +188,17 @@ ui.onVR(toggleVR);
 
 // The frame: move, draw, then send where the head and hands ended up.
 const pose = emptyPose();
-const pos = new THREE.Vector3();
-const quat = new THREE.Quaternion();
+const onThisPage = (p) => p.page === page.id;
 let last = performance.now();
 function frame(time = performance.now()) {
   const dt = Math.min(0.1, Math.max(0, (time - last) / 1000));
   last = time;
   controls.update(dt);
-  avatars.frame(performance.now(), page.id, session.peers);
+  avatars.place(performance.now(), session.peers, onThisPage);
   world.update(time);
   renderer.render(scene, camera);
 
-  camera.getWorldPosition(pos);
-  camera.getWorldQuaternion(quat);
-  setPart(pose, PART.head, pos, quat);
-  setPart(pose, PART.left, controls.handPose('left', pos, quat) ? pos : null, quat);
-  setPart(pose, PART.right, controls.handPose('right', pos, quat) ? pos : null, quat);
-  session.setPose(pose);
+  session.setPose(readPose(camera, renderer.xr.isPresenting ? controls.hands : null, pose));
   session.tick();
 }
 renderer.setAnimationLoop(frame);

@@ -1,7 +1,7 @@
 {
   "name": "layersharedsession",
-  "version": "0.1.0",
-  "description": "A test of a shared-session layer for three.js WebXR sites: visitors in the same room see each other, peer to peer over WebRTC with Trystero, with no server of its own.",
+  "version": "0.2.0",
+  "description": "A shared-session layer for three.js WebXR sites, and a page that tests it: visitors in the same room see each other, peer to peer over WebRTC with Trystero, with no server of its own.",
   "keywords": ["webxr", "threejs", "multiplayer", "webrtc", "trystero", "p2p"],
   "homepage": "https://ariamokr.github.io/layersharedsession/",
   "repository": {
@@ -18,30 +18,44 @@
     "node": ">=20"
   },
   "exports": {
-    "./session.js": "./public/js/session.js",
-    "./pose.js": "./public/js/pose.js",
-    "./shared.js": "./public/js/shared.js",
-    "./identity.js": "./public/js/identity.js",
-    "./room.js": "./public/js/room.js",
+    "./session.js": { "types": "./public/js/session.d.ts", "default": "./public/js/session.js" },
+    "./pose.js": { "types": "./public/js/pose.d.ts", "default": "./public/js/pose.js" },
+    "./shared.js": { "types": "./public/js/shared.d.ts", "default": "./public/js/shared.js" },
+    "./identity.js": { "types": "./public/js/identity.d.ts", "default": "./public/js/identity.js" },
+    "./room.js": { "types": "./public/js/room.d.ts", "default": "./public/js/room.js" },
+    "./avatars.js": { "types": "./public/js/avatars.d.ts", "default": "./public/js/avatars.js" },
     "./package.json": "./package.json"
   },
   "files": [
     "public/js/session.js",
+    "public/js/session.d.ts",
     "public/js/pose.js",
+    "public/js/pose.d.ts",
     "public/js/shared.js",
+    "public/js/shared.d.ts",
     "public/js/identity.js",
+    "public/js/identity.d.ts",
     "public/js/room.js",
+    "public/js/room.d.ts",
+    "public/js/avatars.js",
+    "public/js/avatars.d.ts",
     "tools/vendor.mjs"
   ],
   "scripts": {
     "postinstall": "node tools/vendor.mjs",
     "start": "node tools/serve.mjs",
-    "test": "node --test \"test/*.test.js\""
+    "test": "node --test \"test/*.test.js\"",
+    "types": "node tools/types.mjs"
   },
   "dependencies": {
     "trystero": "0.26.0"
   },
+  "peerDependencies": {
+    "three": ">=0.152.0"
+  },
   "devDependencies": {
-    "three": "0.186.1"
+    "@types/three": "0.186.0",
+    "three": "0.186.1",
+    "typescript": "5.9.3"
   }
 }

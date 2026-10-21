@@ -4,14 +4,17 @@
 // the same count are ordered by the writers' member ids. So every visitor that has received the
 // same writes holds the same values, whatever order the writes arrived in.
 
+/** @typedef {{ value: unknown, clock: number, by: string }} Entry  a value, its Lamport time and writer */
+/** @typedef {{ clock: number, entries: Map<string, Entry> }} Shared */
+
 const MAX_KEY = 64;
 
-/** An empty set of shared values. */
+/** An empty set of shared values. @returns {Shared} */
 export function createShared() {
   return { clock: 0, entries: new Map() };
 }
 
-/** Whether entry `a` beats entry `b` (b may be undefined). */
+/** Whether entry `a` beats entry `b` (b may be undefined). @param {Entry} a @param {Entry} [b] @returns {boolean} */
 export function wins(a, b) {
   if (!b) return true;
   if (a.clock !== b.clock) return a.clock > b.clock;
@@ -35,7 +38,14 @@ function isEntry(e) {
   );
 }
 
-/** Writes `value` to `key` as member `by`, and returns the entry to send to the others. */
+/**
+ * Writes `value` to `key` as member `by`, and returns the entry to send to the others.
+ * @param {Shared} state
+ * @param {string} key  1–64 characters
+ * @param {unknown} value
+ * @param {string} by
+ * @returns {Entry}
+ */
 export function setLocal(state, key, value, by) {
   if (!isKey(key)) throw new Error(`shared: bad key ${JSON.stringify(key)}`);
   state.clock += 1;
@@ -44,7 +54,7 @@ export function setLocal(state, key, value, by) {
   return entry;
 }
 
-/** Takes an entry received for `key`. Returns true when it replaced the value held. */
+/** Takes an entry received for `key`. Returns true when it replaced the value held. @param {Shared} state @param {string} key @param {unknown} entry @returns {boolean} */
 export function merge(state, key, entry) {
   if (!isKey(key) || !isEntry(entry)) return false;
   state.clock = Math.max(state.clock, entry.clock);
@@ -53,14 +63,14 @@ export function merge(state, key, entry) {
   return true;
 }
 
-/** Every entry, as a plain object to send (to a visitor who just arrived). */
+/** Every entry, as a plain object to send (to a visitor who just arrived). @param {Shared} state @returns {Record<string, Entry>} */
 export function snapshot(state) {
   const out = {};
   for (const [key, entry] of state.entries) out[key] = entry;
   return out;
 }
 
-/** Takes a snapshot (or a single { key: entry } update). Returns the keys whose values changed. */
+/** Takes a snapshot (or a single { key: entry } update). Returns the keys whose values changed. @param {Shared} state @param {unknown} snap @returns {string[]} */
 export function mergeSnapshot(state, snap) {
   const changed = [];
   if (snap === null || typeof snap !== 'object' || Array.isArray(snap)) return changed;
@@ -70,7 +80,7 @@ export function mergeSnapshot(state, snap) {
   return changed;
 }
 
-/** The value of `key`, or `fallback` when nobody has written it. */
+/** The value of `key`, or `fallback` when nobody has written it. @param {Shared} state @param {string} key @param {unknown} [fallback] @returns {unknown} */
 export function getValue(state, key, fallback = undefined) {
   const entry = state.entries.get(key);
   return entry ? entry.value : fallback;
