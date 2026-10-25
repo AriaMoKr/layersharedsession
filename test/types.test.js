@@ -33,5 +33,5 @@ test('a strict TypeScript site type-checks against them, through the exports', (
   const text = ts.formatDiagnostics(problems, { getCanonicalFileName: (f) => f, getCurrentDirectory: () => root, getNewLine: () => '\n' });
   assert.equal(problems.length, 0, text);
   const layer = program.getSourceFiles().map((f) => f.fileName).filter((f) => /\/public\/js\/[a-z]+\.d\.ts$/.test(f));
-  assert.equal(layer.length, 6, `the layer's declarations, not its .js: ${layer.join(', ')}`);
+  assert.equal(layer.length, 7, `the layer's declarations, not its .js: ${layer.join(', ')}`);
 });

@@ -12,8 +12,8 @@ API, and how a site takes it up.
 
 The repo is two things:
 
-- **The layer:** six modules in `public/js/` (`session.js`, `pose.js`, `shared.js`,
-  `identity.js`, `room.js`, `avatars.js`), each with a `.d.ts` beside it. With `tools/vendor.mjs`
+- **The layer:** seven modules in `public/js/` (`session.js`, `pose.js`, `shared.js`,
+  `identity.js`, `room.js`, `avatars.js`, `together.js`), each with a `.d.ts` beside it. With `tools/vendor.mjs`
   they are the whole npm package (`files` and `exports` in package.json). Sites install it from
   GitHub pinned to a tag or commit (`github:AriaMoKr/layersharedsession#v0.2.0`): the Hallway
   (https://ariamokr.github.io/hallway/, AriaMoKr/hallway, `together.js`, page `hallway`), and
@@ -61,14 +61,24 @@ server, outside and its Quest server), so they can all run side by side.
   `group`; `readPose(camera, hands, out)` is this visitor's pose from the camera and the XR
   controllers. The geometry is made with the first avatar. It came from the hallway's
   `together.js`, which the sites had copied; keep it what they draw.
+- `together.js`: the session controller, the shared part of the sites' own `together.js` (the
+  hallway's at 3a3a8ef). `createTogether({ appId, page, camera, renderer, hands, avatars, isHere,
+  pageName })`: `start`, `stop`, `pause`, `resume`, the room in the address by
+  `history.replaceState(history.state, …)` (vrlbry's and outside's Back keep fields in
+  `history.state`), `import('./session.js')` lazily with a ticket so a stale join is dropped, the
+  relay wait (`RELAY_WAIT_MS`), failed handshakes counted from the log, waves at most once a second
+  per visitor, `company()`, `condition()`, `update(now)`. Events `change`, `notice` (`join`,
+  `arrive`, `leave`, `wave`) and `session`. It words nothing; the sites do. `joinSession` and `now`
+  options are for tests.
 - `room.js`: pure. Room ids like `k3vd-q8hn` (`isRoom`, `newRoom`), `roomFromUrl`, `withRoom`, and
   `linkInRoom` for a link to another page in the same room.
 - `shared.js`: pure. The last write wins by a Lamport clock, then by member id; `snapshot` and
   `mergeSnapshot` for a newcomer.
-- The test page: `main.js` runs both pages (`<body data-page>`): the room, the session, the
-  switch (shared key `switch`), the wave (`channel('wave')`, data `1`), the door (leave, then
-  `location.assign`; leave on `pagehide` too, and reload when the back/forward cache restores it),
-  and the frame loop. `pages.js` has the two pages and `APP_ID`
+- The test page: `main.js` runs both pages (`<body data-page>`) through `together.js`: the session
+  started at load (the room in `?room=`, or a new one), Start/Stop, the switch (shared key
+  `switch`, through the `session` event), the wave, the door (`pause`, then `location.assign`;
+  `pause` on `pagehide` too, and `resume` when the back/forward cache restores it), and the frame
+  loop. `pages.js` has the two pages and `APP_ID`
   (`ariamokr-layersharedsession-test`), which the sites use too, so the test page can watch their
   rooms. `world.js` builds the scene, the layer's `avatars.js` draws the others, `controls.js`
   moves the viewer (desktop, touch, XR; `hands` for readPose), and `ui.js` is the panel and the
@@ -84,24 +94,25 @@ server, outside and its Quest server), so they can all run side by side.
   commit in the same room, so a change to the messages must still read and answer the old ones.
   Keep exports and option names compatible, or change every site with them. After the layer
   changes, push, then move each site's pinned commit and run `npm install` there (README, "Using the
-  layer in another site"). Tag each version the sites take (`v0.2.0`, with package.json's
-  `version`). Only the six modules, their `.d.ts`, `tools/vendor.mjs` and package.json ship to the
+  layer in another site"). Tag each version the sites take (`v0.3.0`, with package.json's
+  `version`). Only the seven modules, their `.d.ts`, `tools/vendor.mjs` and package.json ship to the
   sites; README, the test page and the other tools don't.
 - The JSDoc is the source of the types. After changing an exported module's signatures or
   typedefs, run `npm run types` and commit the `.d.ts` with it. Typedefs go before a statement
   that isn't exported, or TypeScript repeats them as comments above the next export.
-- `three` is a peer dependency (r152 or later), for `avatars.js`; the site supplies it. The pure
-  modules import neither three nor Trystero. `test/` covers them in Node, and `avatars.js` too
-  (three runs in Node; a stand-in canvas takes the labels).
+- `three` is a peer dependency (r152 or later), for `avatars.js` and so `together.js`; the site
+  supplies it. The pure modules import neither three nor Trystero. `test/` covers them in Node, and
+  `avatars.js` too (three runs in Node; a stand-in canvas takes the labels), and `together.js` with a
+  stand-in `joinSession`, address, history and storage.
   `test/site.test.js` checks the pages, the import maps, the vendored modules' imports, and that
   client URLs stay relative (the site lives under `/layersharedsession/`). `session.js` has no Node
   test; check it in the browser.
-- Quest 3 is the sites' performance target. Nothing on the per-frame path (`readPose`, `setPose`,
-  `tick`, `place`, `samplePose`) allocates except `tick`, which copies the pose when it sends one
+- Quest 3 is the sites' performance target. Nothing on the per-frame path (`update`, `readPose`,
+  `setPose`, `tick`, `place`, `samplePose`, a site's `isHere`) allocates except `tick`, which copies the pose when it sends one
   (at most 15 times a second).
 - Trystero needs `crypto.subtle`, so a secure context: `http://localhost` or https. A LAN address
   over plain http will not connect.
-- Scripted testing: `window.__lss` (session, renderer, scene, camera, rig, controls, avatars, world,
+- Scripted testing: `window.__lss` (together, session, renderer, scene, camera, rig, controls, avatars, world,
   `goThroughDoor`, `tick(dt, n)`). Each tab is its own visitor, so open the same `?room=` in two
   tabs. A hidden browser pane gets no animation frames, so drive it with `tick()`. The published
   page and a local one share the app id, so they can be in one room.

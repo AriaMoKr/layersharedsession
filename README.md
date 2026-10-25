@@ -7,9 +7,9 @@ same link sees everyone else: where they are, which way they look, and their han
 can share values (the test page has a switch anyone can flip) and send each other messages.
 
 [Hallway](https://ariamokr.github.io/hallway/) uses it for its shared sessions: "Together" on its
-control panel. Two of the places behind its doors, [vrlbry](https://ariamokr.github.io/vrlbry/)
-and [Outside](https://ariamokr.github.io/outside/), join the same session, so a room carries through
-the doors. [Breadboard](https://ariamokr.github.io/breadboard/) doesn't use it yet.
+control panel. The places behind its doors, [vrlbry](https://ariamokr.github.io/vrlbry/),
+[Outside](https://ariamokr.github.io/outside/) and [Breadboard](https://ariamokr.github.io/breadboard/),
+join the same session, so a room carries through the doors.
 
 It runs peer to peer over WebRTC with [Trystero](https://github.com/dmotz/trystero). Trystero's
 default strategy finds the other visitors through public Nostr relays, so there is no server to
@@ -50,6 +50,8 @@ rate with several visitors.
   goes to another site. The page leaves the room before it unloads. The next page joins again, and
   the others recognise the visitor coming back by a member id kept in the tab's `sessionStorage`.
   Both sides log how long that took.
+- **The controller.** The page runs its session through the layer's `together.js`, as the sites
+  can: starting and stopping it, the room in the address, the door, and the waves.
 
 Times in the log are seconds since the page began loading. Measurements are in yellow.
 
@@ -63,6 +65,7 @@ npm test
 
 Open http://localhost:8092/. The page makes up a room (`?room=k3vd-q8hn`) and puts it in the
 address. **Copy invite link** copies that address; open it anywhere to join the same room.
+**Stop** leaves the session and takes the room out of the address; **Start** begins a new one.
 
 ### On one PC
 
@@ -90,7 +93,7 @@ room alone, and both use the same app id, so the same relays.
 
 ### Watching a site's session
 
-Hallway, vrlbry and Outside use the test page's app id (`ariamokr-layersharedsession-test`). So
+Hallway, vrlbry, Outside and Breadboard use the test page's app id (`ariamokr-layersharedsession-test`). So
 the test page, opened with a hallway room
 (`https://ariamokr.github.io/layersharedsession/?room=<the room>`), joins that session. It lists everyone in it with their round trips and the page they are on ("on hallway"),
 and logs who comes and goes. It counts as a visitor on another page, so hallway shows it as
@@ -108,9 +111,10 @@ The grip button in VR, or **Wave** in the panel, makes your avatar bob on the ot
 
 ## The layer
 
-Six modules in `public/js/`, each with its types beside it (`.d.ts`). Only `session.js` needs
-Trystero, and only `avatars.js` needs three, which the site supplies (a peer dependency, three
-r152 or later). The other four are pure. All six are tested in Node.
+Seven modules in `public/js/`, each with its types beside it (`.d.ts`). Only `session.js` needs
+Trystero. `avatars.js` needs three, which the site supplies (a peer dependency, three r152 or
+later), and so does `together.js`, the session controller, which uses the others. The other four
+are pure. All seven are tested in Node.
 
 ### `session.js`
 
@@ -195,13 +199,68 @@ vrlbry's `isHere` also asks whether the peer is in the same room of the library,
 on the avatar. `place` and `readPose` allocate nothing, and the geometry is made with the first
 avatar, so a page that never meets anyone builds none.
 
+### `together.js`
+
+A shared session as the sites run one: what each site's own `together.js` did the same way. It
+starts a session in a room and leaves it, steps out for a door and back, keeps the room in the
+address, sends this visitor's pose and draws the others (`avatars.js`), counts who is here, and
+takes waves, at most one a second from each visitor. It loads `session.js`, and Trystero with it,
+only when a session starts. It words nothing: the site listens and says things its own way.
+
+```js
+import { createTogether } from 'layersharedsession/together.js';
+
+const together = createTogether({
+  appId,      // the same for every site that shares rooms
+  page,       // this page's id in the session, e.g. 'hallway'
+  camera,     // the viewer's head (optional: without it no pose is sent)
+  renderer,   // for renderer.xr.isPresenting
+  hands,      // () => the XR controllers, { controller, source } (optional)
+  avatars: { parent: scene, font, ground },   // createAvatars' options, or null to draw no one
+  isHere,     // (peer, avatar) => …, narrows who is here among those on this page (optional)
+  pageName,   // page id → words, for the log (optional)
+});
+together.on('change', () => drawPanel(together.company(), together.condition()));
+together.on('notice', ({ kind, peer, from }) => toast(kind, peer, from));
+together.start(roomFromUrl(location.href) ?? undefined);   // a new room by default
+addEventListener('pagehide', () => together.pause());
+addEventListener('pageshow', (e) => e.persisted && together.resume());
+// every frame:
+together.update(performance.now());
+```
+
+| | |
+|---|---|
+| `start(room?)` | Leaves any session, joins `room` (a new one by default) and puts it in the address. |
+| `stop()` | Leaves and takes `?room=` out of the address. Resolves once left. |
+| `pause()`, `resume()` | Leaves for now, keeping the room (a door's link carries it on); joins it again (the navigation didn't happen, or Back restored the page). `pause` resolves once left, so a site can wait briefly before it navigates. |
+| `active`, `room`, `paused` | In a session (joined or joining); its room, kept while paused; stepped out for a door. |
+| `session` | The session joined (`session.js`), or null while loading or out of one. |
+| `inviteLink` | This page with only `?room=`; '' out of a session. |
+| `self`, `setName(name)` | This visitor, in a session or not; renames them everywhere and keeps the name (`identity.js`). |
+| `wave()` | Waves on the `wave` channel, with the data `1`, as the sites do; false out of a session. |
+| `company()` | `{ here, nearby, away, connecting }`: on this page and `isHere`; on this page but not `isHere`; on another page; connected, their hello not come yet. |
+| `condition()` | `{ online, loaded, relays, slow, failed }`: `navigator.onLine`; the session loaded and joined; the relays open; still none 10 s after joining; handshakes with others that failed (they need TURN). |
+| `people()` | The others whose hello has come (`session.js`'s peers). |
+| `avatars`, `reduceMotion` | The others' avatars (`avatars.js`), or null; true makes a wave only its notice, without the bob. |
+| `update(now)` | Every frame: sends the pose and places the others who are here. Allocates nothing. |
+
+Events: `change` (anything shown may have changed), `notice` (`{ kind, peer, from }`: `join`, a
+visitor said hello, on this page or another; `arrive`, one came onto this page `from` another;
+`leave`; `wave`) and `session` (a session was joined, after `start` or `resume`: for a site's own
+shared values and listeners). `on(type, fn)` returns a function that stops listening.
+
+`isHere` decides both who is drawn and whom `company()` counts as here. It is called every frame
+for each avatar on this page, so it must not allocate. Without it, everyone on this page is here.
+
 ### Types
 
 Each module has a `.d.ts` beside it, made by TypeScript from the module's JSDoc and committed:
 `npm run types` (`tools/types.mjs`) writes them, and `npm test` fails when they are out of step. A
 TypeScript site finds them through package.json's `exports` (`moduleResolution` `bundler` or
 `node16`). They name the layer's shapes: `Session`, `Peer`, `SessionEvents`, `Channel`,
-`Identity`, `PoseBuffer`, `Avatar`, `Hand` and so on. `avatars.d.ts` refers to three's types, so a
+`Identity`, `PoseBuffer`, `Avatar`, `Hand`, `Together`, `Notice`, `Company`, `Condition` and so
+on. `avatars.d.ts` refers to three's types, so a
 site in TypeScript also needs `@types/three`.
 
 ### The pure modules
@@ -226,13 +285,13 @@ As hallway does (its `together.js`, `tools/vendor.mjs` and `index.html`):
 
    ```json
    "dependencies": {
-     "layersharedsession": "github:AriaMoKr/layersharedsession#v0.2.0",
+     "layersharedsession": "github:AriaMoKr/layersharedsession#v0.3.0",
      "three": "0.186.1",
      "trystero": "0.26.0"
    }
    ```
 
-   The package holds only the layer's six modules and their types. In Node they import as
+   The package holds only the layer's seven modules and their types. In Node they import as
    `layersharedsession/room.js` and so on, for tests. `npm ci` fetches it over https, so a CI
    runner needs no SSH key (checked with SSH disabled and an empty npm cache). npm 11 warns that
    the package has an install script not covered by `allowScripts`; it is harmless, since the
@@ -268,20 +327,49 @@ As hallway does (its `together.js`, `tools/vendor.mjs` and `index.html`):
 7. **Send and draw every frame:** `readPose`, `setPose` and `tick`, then `avatars.place`. Draw only
    the peers whose `page` is this page.
 
-When the layer changes, push it and tag a version (`v0.2.0`), then move each site's pin to it and
+`together.js` does steps 3, 5 and 7, and the leaving in step 6 (`pause` and `resume`); the site
+still calls them at the right moments, and words everything.
+
+When the layer changes, push it and tag a version (`v0.3.0`), then move each site's pin to it and
 run `npm install` there. Visitors on sites pinned at different versions meet in the same rooms, so
 the messages between them have to stay compatible.
 
+## Coming from a site's own `together.js`
+
+Each site had its own `together.js` (breadboard's `together.ts`), copied from the hallway's. With
+`createTogether` in its place, the site keeps its words, its page id and what is particular to it:
+
+- **hallway:** where the controller came from. `new Together({ scene, camera, renderer, hands })`
+  becomes `createTogether({ appId: APP_ID, page: 'hallway', camera, renderer, hands, avatars:
+  { parent: scene, font: SANS } })`. `onChange` is `on('change')`; `onNotice` is `on('notice')`,
+  worded by `presence.js` as now. `status` is `statusText({ ...together.condition(),
+  ...together.company() })`. `people()` and `panelPeople()` stay, as words over `together.people()`.
+- **outside:** as hallway, with `avatars: { parent: scene, ground }`, so the rings sit on the
+  terrain.
+- **vrlbry and music:** `isHere(peer, avatar)` is their `_isHere`: whether the peer is in the same
+  room of the library as this visitor, by the `space` key kept on the avatar and made again when
+  the peer's member id changes, so a frame allocates nothing. On `session` they write their own
+  space (`s.set(spaceKey(s.self.memberId), space)`), and again on its `self` event; a `shared`
+  change to a space key redraws. `company()`'s `nearby` is their "elsewhere in the library". They
+  import it as `../vendor/layersharedsession/together.js`, which finds `session.js` beside it.
+- **breadboard:** in TypeScript (`import { createTogether, type Together } from
+  'layersharedsession/together.js'`). Its `sessionStatus` reads `condition()` (whose `loaded` is
+  its `joined`) and `company()`, and `condition().slow` replaces its `startedAt` check.
+
+One thing changes for all of them: `arrive` comes from the controller's own record of each peer's
+page, so a round trip measured before someone's hello no longer makes a "came in" later.
+
 ## How the test page fits together
 
-- `main.js` runs both pages (`<body data-page>`): the room, the session, the frame loop.
+- `main.js` runs both pages (`<body data-page>`): the room and the session through `together.js`,
+  the switch, the door and the frame loop.
 - `world.js` builds the scene, `controls.js` moves the viewer, `ui.js` is the panel, and
   `pages.js` defines the two pages and the app id (`APP_ID`). The other visitors are the layer's
   `avatars.js`, as on the sites.
 - Each page's import map points `three`, `trystero`, `@trystero-p2p/core` and `@noble/secp256k1`
   at `public/vendor/`, which `tools/vendor.mjs` fills on `npm install`. There is no bundler.
-- `window.__lss` gives scripts the session, the scene and `tick(dt, n)` to drive frames in a hidden
-  browser.
+- `window.__lss` gives scripts the controller (`together`), the session, the scene and `tick(dt, n)`
+  to drive frames in a hidden browser.
 
 ## Limits
 

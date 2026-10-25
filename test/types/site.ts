@@ -8,6 +8,7 @@ import { emptyPose, hasPart, INTERP_DELAY_MS, latestPose, PART, PART_LENGTH, sam
 import { createShared, getValue, setLocal } from 'layersharedsession/shared.js';
 import type { Peer, Relays, Session } from 'layersharedsession/session.js';
 import { createAvatars, readPose, WAVE_MS, type Avatar, type Hand } from 'layersharedsession/avatars.js';
+import { createTogether, RELAY_WAIT_MS, type Company, type Condition, type Notice } from 'layersharedsession/together.js';
 
 const PAGE_ID = 'breadboard';
 
@@ -64,5 +65,40 @@ export async function join(scene: THREE.Scene, camera: THREE.Camera, renderer: T
   return () => {
     stop();
     void s.leave();
+  };
+}
+
+/** The same site with the controller (together.js): the layer runs the session, the site words it. */
+export function together(scene: THREE.Scene, camera: THREE.Camera, renderer: THREE.WebGLRenderer, hands: () => Hand[]): () => Promise<void> {
+  const t = createTogether({
+    appId: 'ariamokr-layersharedsession-test',
+    page: PAGE_ID,
+    camera,
+    renderer,
+    hands,
+    avatars: { parent: scene, ground: null },
+    isHere: (p, a) => a?.page === p.page,
+    pageName: (p) => p,
+  });
+  const words: string[] = [];
+  const offChange = t.on('change', () => {
+    const c: Company = t.company();
+    const k: Condition = t.condition();
+    words.push(`${c.here} here, ${c.nearby + c.away} elsewhere, ${c.connecting} connecting`, k.slow ? "Can't reach the relays" : `${k.relays} relays, ${k.failed} failed`);
+  });
+  t.on('notice', ({ kind, peer, from }: Notice) => words.push(`${peer.name ?? 'Someone'} ${kind} ${from ?? ''}`));
+  t.on('session', (s: Session) => s.set(`${PAGE_ID}.space.${s.self.memberId}`, 'stacks'));
+  t.start(roomFromUrl(location.href) ?? undefined);
+  t.reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const room: string | null = t.room;
+  const name: string = t.setName(t.self.name);
+  const memberId: string = t.self.memberId;
+  void [t.wave(), t.inviteLink, t.active, t.paused, t.session?.peers.size, t.people().map((p) => p.rtt), t.avatars?.list.length, room, name, memberId, RELAY_WAIT_MS, words];
+  t.update(performance.now());
+  return async () => {
+    offChange();
+    await t.pause();
+    t.resume();
+    await t.stop();
   };
 }

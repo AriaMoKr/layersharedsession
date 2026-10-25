@@ -98,6 +98,12 @@ body {
   background: rgba(255, 255, 255, 0.14);
 }
 
+#panel button:disabled {
+  opacity: 0.45;
+  cursor: default;
+  background: rgba(255, 255, 255, 0.08);
+}
+
 #panel button.switch[aria-pressed='true'] {
   background: #2e7d4f;
   border-color: #3fa66a;

@@ -1,5 +1,5 @@
-// The panel over the scene: the room and its invitation link, your name, the door to the other page,
-// the relays, the shared switch, everyone in the session with their round trip, and the log, whose
+// The panel over the scene: the room, its invitation link and Start/Stop, your name, the door to the
+// other page, the relays, the shared switch, everyone in the session with their round trip, and the log, whose
 // times are seconds since this page began loading. Names come from other visitors, so they only
 // ever go in as text, never as HTML.
 import { pageTitle } from './pages.js';
@@ -20,6 +20,7 @@ const MAX_LOG = 300;
 export function createUi(root, page) {
   const roomCode = el('code', { class: 'room' });
   const copyBtn = el('button', { type: 'button', text: 'Copy invite link' });
+  const sessionBtn = el('button', { type: 'button', text: 'Stop' });
   const nameInput = el('input', { type: 'text', maxlength: '24', 'aria-label': 'Your name', autocomplete: 'off', spellcheck: 'false' });
   const selfDot = el('span', { class: 'dot' });
   const otherLink = el('a', { class: 'button door' });
@@ -36,7 +37,7 @@ export function createUi(root, page) {
   const body = el('div', { class: 'body' });
 
   body.append(
-    el('div', { class: 'row' }, el('span', { class: 'label', text: 'Room' }), roomCode, copyBtn),
+    el('div', { class: 'row' }, el('span', { class: 'label', text: 'Room' }), roomCode, copyBtn, sessionBtn),
     el('div', { class: 'row' }, el('span', { class: 'label', text: 'You' }), selfDot, nameInput),
     el('div', { class: 'row' }, otherLink, vrBtn),
     el('div', { class: 'row' }, el('span', { class: 'label', text: 'Relays' }), relays),
@@ -73,9 +74,17 @@ export function createUi(root, page) {
   });
 
   return {
+    /** The room, or null out of a session (then no invitation either). */
     setRoom(room, inviteHref) {
-      roomCode.textContent = room;
+      roomCode.textContent = room ?? '—';
       invite = inviteHref;
+      copyBtn.disabled = !inviteHref;
+    },
+    /** In a session (active), and joined: the switch and the wave need the session loaded. */
+    setActive(active, joined) {
+      sessionBtn.textContent = active ? 'Stop' : 'Start';
+      switchBtn.disabled = !joined;
+      waveBtn.disabled = !joined;
     },
     setSelf(self) {
       if (document.activeElement !== nameInput) nameInput.value = self.name;
@@ -85,9 +94,10 @@ export function createUi(root, page) {
       otherLink.href = href;
       otherLink.textContent = `Go to ${title} →`;
     },
-    setRelays({ open, total }) {
-      relays.textContent = `${open} of ${total} connected`;
-      relays.classList.toggle('bad', open === 0);
+    /** The session's relays, or null before it has loaded (active) or out of one. */
+    setRelays(r, active) {
+      relays.textContent = r ? `${r.open} of ${r.total} connected` : active ? 'connecting…' : 'not in a session';
+      relays.classList.toggle('bad', !!r && r.open === 0);
     },
     setSwitch(on, byName) {
       switchBtn.textContent = `Switch: ${on ? 'on' : 'off'}`;
@@ -144,6 +154,9 @@ export function createUi(root, page) {
     },
     onSwitch(fn) {
       switchBtn.addEventListener('click', () => fn());
+    },
+    onStartStop(fn) {
+      sessionBtn.addEventListener('click', () => fn());
     },
     onWave(fn) {
       waveBtn.addEventListener('click', () => fn());

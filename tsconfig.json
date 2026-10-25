@@ -20,6 +20,7 @@
     "public/js/shared.js",
     "public/js/identity.js",
     "public/js/room.js",
-    "public/js/avatars.js"
+    "public/js/avatars.js",
+    "public/js/together.js"
   ]
 }

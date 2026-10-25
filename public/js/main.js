@@ -1,34 +1,19 @@
-// The test page: joins the room in ?room= (making one up when there is none), draws the other
-// visitors on this page, and sends this visitor's pose. Both pages (index.html and b.html) run this
-// module; <body data-page> says which one it is.
+// The test page: starts a session in the room in ?room= (making one up when there is none) through
+// the layer's controller (together.js), which draws the other visitors on this page and sends this
+// visitor's pose; Stop leaves it, and Start begins a new one. Both pages (index.html and b.html) run
+// this module; <body data-page> says which one it is.
 import * as THREE from 'three';
-import { joinSession } from './session.js';
-import { linkInRoom, newRoom, roomFromUrl, withRoom } from './room.js';
-import { hash, loadIdentity, saveName } from './identity.js';
-import { emptyPose } from './pose.js';
+import { createTogether } from './together.js';
+import { linkInRoom, roomFromUrl } from './room.js';
+import { hash } from './identity.js';
 import { APP_ID, pageInfo, pageTitle } from './pages.js';
 import { buildWorld, PEDESTAL } from './world.js';
-import { createAvatars, readPose } from './avatars.js';
 import { createControls } from './controls.js';
 import { createUi } from './ui.js';
 
-const storage = (name) => {
-  try {
-    return window[name];
-  } catch {
-    return null;
-  }
-};
-
 const page = pageInfo(document.body.dataset.page);
 const other = pageInfo(page.other);
-
-let room = roomFromUrl(location.href);
-if (!room) {
-  room = newRoom();
-  history.replaceState(history.state, '', withRoom(location.href, room));
-}
-const identity = loadIdentity(storage('sessionStorage'), storage('localStorage'));
+const log = (text, kind = 'info') => ui.addLog({ t: performance.now(), kind, text });
 
 // The scene.
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -44,7 +29,6 @@ const rig = new THREE.Group();
 rig.add(camera);
 scene.add(rig);
 const world = buildWorld(scene, page, other);
-const avatars = createAvatars({ parent: scene });
 
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
@@ -53,71 +37,74 @@ addEventListener('resize', () => {
 });
 
 // The session.
-const session = joinSession({ appId: APP_ID, room, page: page.id, identity, storage: storage('sessionStorage'), pageName: pageTitle });
+let controls = null;
+const together = createTogether({
+  appId: APP_ID,
+  page: page.id,
+  camera,
+  renderer,
+  hands: () => controls.hands,
+  avatars: { parent: scene },
+  pageName: pageTitle,
+});
 const ui = createUi(document.getElementById('panel'), page);
-const otherHref = linkInRoom(location.href, other.file, room);
-ui.setRoom(room, location.href);
-ui.setOther(otherHref, other.title);
-ui.setSelf(session.self);
 
+/** The door's link: the other page, in the same room when in one. */
+const otherHref = () => (together.room ? linkInRoom(location.href, other.file, together.room) : new URL(other.file, location.href).href);
 const nameOf = (memberId) => {
-  if (memberId === session.self.memberId) return 'you';
-  for (const p of session.peers.values()) if (p.memberId === memberId) return p.name;
+  if (memberId === together.self.memberId) return 'you';
+  for (const p of together.people()) if (p.memberId === memberId) return p.name;
   return 'someone who left';
 };
 // The switch's "set by" follows renames: keep who set it, find their name when drawing.
 let switchBy = null;
-const refreshSwitch = () => ui.setSwitch(!!session.get('switch', false), switchBy && nameOf(switchBy));
-const refreshPeers = () => {
-  ui.setPeers(session.peers.values(), page.id);
+const refreshSwitch = () => ui.setSwitch(!!together.session?.get('switch', false), switchBy && nameOf(switchBy));
+function refresh() {
+  const s = together.session;
+  ui.setRoom(together.room, together.inviteLink);
+  ui.setActive(together.active, !!s);
+  ui.setOther(otherHref(), other.title);
+  ui.setSelf(together.self);
+  ui.setRelays(s ? s.relays : null, together.active);
+  ui.setPeers(s ? s.peers.values() : [], page.id);
   refreshSwitch();
-};
+}
+together.on('change', refresh);
 
-session.on('log', (entry) => ui.addLog(entry));
-session.on('relays', (r) => ui.setRelays(r));
-session.on('self', (self) => {
-  ui.setSelf(self);
-  refreshSwitch();
+// Each session joined (at load, after Start, and after a pause): the page's own listeners.
+together.on('session', (s) => {
+  switchBy = null;
+  world.setSwitch(false);
+  s.on('log', (entry) => ui.addLog(entry)); // the log so far, then each line
+  s.on('shared', ({ key, value, by, from, initial }) => {
+    if (key !== 'switch') return;
+    switchBy = by;
+    world.setSwitch(!!value);
+    refreshSwitch();
+    if (!from) return;
+    log(initial ? `The switch is ${value ? 'on' : 'off'} (last set by ${nameOf(by)})` : `${nameOf(by)} turned the switch ${value ? 'on' : 'off'}`);
+  });
 });
-session.on('join', (p) => {
-  avatars.show(p);
-  refreshPeers();
+together.on('notice', ({ kind, peer }) => {
+  if (kind === 'wave') log(`${peer.name} waved`);
 });
-session.on('update', (p) => {
-  avatars.show(p);
-  refreshPeers();
-});
-session.on('leave', (p) => {
-  avatars.drop(p.peerId);
-  refreshPeers();
-});
-session.on('shared', ({ key, value, by, from, initial }) => {
-  if (key !== 'switch') return;
-  switchBy = by;
-  world.setSwitch(!!value);
-  refreshSwitch();
-  if (!from) return;
-  const text = initial ? `The switch is ${value ? 'on' : 'off'} (last set by ${nameOf(by)})` : `${nameOf(by)} turned the switch ${value ? 'on' : 'off'}`;
-  ui.addLog({ t: performance.now(), kind: 'info', text });
-});
-refreshSwitch();
 
-const wave = session.channel('wave');
-wave.on((_, p) => {
-  avatars.wave(p.peerId, performance.now());
-  ui.addLog({ t: performance.now(), kind: 'info', text: `${p.name} waved` });
-});
+const toggleSwitch = () => together.session?.set('switch', !together.session.get('switch', false));
 const sendWave = () => {
-  wave.send(1);
-  ui.addLog({ t: performance.now(), kind: 'info', text: 'You waved' });
+  if (together.wave()) log('You waved');
 };
-
-ui.onName((name) => {
-  saveName(storage('sessionStorage'), storage('localStorage'), name);
-  session.setName(name);
-});
-ui.onSwitch(() => session.set('switch', !session.get('switch', false)));
+ui.onName((name) => together.setName(name));
+ui.onSwitch(toggleSwitch);
 ui.onWave(sendWave);
+ui.onStartStop(() => {
+  if (together.active) {
+    log(`Left the session in ${together.room}`);
+    together.stop();
+  } else {
+    together.start();
+    log(`Started a session in ${together.room}`);
+  }
+});
 
 // Going through the door: leave the room first, so the others see you go at once (not when the
 // connection times out), then load the other page in the same room.
@@ -125,19 +112,23 @@ let leaving = false;
 function goThroughDoor() {
   if (leaving) return;
   leaving = true;
-  ui.addLog({ t: performance.now(), kind: 'info', text: `Going to ${other.title}…` });
+  log(`Going to ${other.title}…`);
+  const href = otherHref();
   const timeout = new Promise((resolve) => setTimeout(resolve, 400));
-  Promise.race([session.leave(), timeout]).finally(() => location.assign(otherHref));
+  Promise.race([together.pause(), timeout]).finally(() => location.assign(href));
 }
 ui.onDoor(goThroughDoor);
-addEventListener('pagehide', () => session.leave());
-// Back/Forward may restore this page from the back/forward cache with the session already left.
+addEventListener('pagehide', () => together.pause());
+// Back/Forward may restore this page from the back/forward cache, with the session left: join again.
 addEventListener('pageshow', (e) => {
-  if (e.persisted) location.reload();
+  if (!e.persisted) return;
+  leaving = false;
+  if (together.paused) log('Back on this page');
+  together.resume();
 });
 
 // Moving and selecting.
-const controls = createControls({
+controls = createControls({
   renderer,
   camera,
   rig,
@@ -147,7 +138,7 @@ const controls = createControls({
 });
 {
   // Start somewhere around the pedestal (each visitor at their own angle), facing it.
-  const a = ((hash(session.self.memberId) % 360) * Math.PI) / 180;
+  const a = ((hash(together.self.memberId) % 360) * Math.PI) / 180;
   controls.place(new THREE.Vector3(PEDESTAL.x + Math.sin(a) * 2.5, 0, PEDESTAL.z + Math.cos(a) * 2.5), PEDESTAL);
 }
 
@@ -158,7 +149,7 @@ function select(ray) {
   raycaster.ray.copy(ray);
   const hits = raycaster.intersectObjects([world.button, world.portal], false);
   if (hits.length) {
-    if (hits[0].object === world.button) session.set('switch', !session.get('switch', false));
+    if (hits[0].object === world.button) toggleSwitch();
     else goThroughDoor();
     return;
   }
@@ -181,37 +172,38 @@ async function toggleVR() {
     ui.setVRLabel('Exit VR');
     xrSession.addEventListener('end', () => ui.setVRLabel('Enter VR'));
   } catch (err) {
-    ui.addLog({ t: performance.now(), kind: 'error', text: `Couldn't enter VR: ${err.message}` });
+    log(`Couldn't enter VR: ${err.message}`, 'error');
   }
 }
 ui.onVR(toggleVR);
 
-// The frame: move, draw, then send where the head and hands ended up.
-const pose = emptyPose();
-const onThisPage = (p) => p.page === page.id;
+// The frame: move, send where the head and hands are and place the others, then draw.
 let last = performance.now();
 function frame(time = performance.now()) {
   const dt = Math.min(0.1, Math.max(0, (time - last) / 1000));
   last = time;
   controls.update(dt);
-  avatars.place(performance.now(), session.peers, onThisPage);
+  together.update(performance.now());
   world.update(time);
   renderer.render(scene, camera);
-
-  session.setPose(readPose(camera, renderer.xr.isPresenting ? controls.hands : null, pose));
-  session.tick();
 }
 renderer.setAnimationLoop(frame);
 
+together.start(roomFromUrl(location.href) ?? undefined);
+refresh();
+
 // For scripted testing (a hidden browser pane gets no animation frames: drive it with tick()).
 window.__lss = {
-  session,
+  together,
+  get session() {
+    return together.session;
+  },
   renderer,
   scene,
   camera,
   rig,
   controls,
-  avatars,
+  avatars: together.avatars,
   world,
   goThroughDoor,
   tick(dt = 1 / 60, n = 1) {
