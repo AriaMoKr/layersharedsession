@@ -1,0 +1,12 @@
+[
+  { "from": "three/build/three.module.js", "to": "three/three.module.js" },
+  { "from": "three/build/three.core.js", "to": "three/three.core.js" },
+  { "from": "three/LICENSE", "to": "three/LICENSE" },
+  { "dir": "@trystero-p2p/core/dist", "to": "trystero-core", "ext": ".mjs" },
+  { "from": "@trystero-p2p/core/LICENSE", "to": "trystero-core/LICENSE", "optional": true },
+  { "from": "@trystero-p2p/nostr/dist/index.mjs", "to": "trystero-nostr/index.mjs" },
+  { "from": "@trystero-p2p/nostr/LICENSE", "to": "trystero-nostr/LICENSE", "optional": true },
+  { "from": "trystero/LICENSE", "to": "trystero-nostr/LICENSE.trystero", "optional": true },
+  { "from": "@noble/secp256k1/index.js", "to": "noble-secp256k1/index.js" },
+  { "from": "@noble/secp256k1/LICENSE", "to": "noble-secp256k1/LICENSE", "optional": true }
+]

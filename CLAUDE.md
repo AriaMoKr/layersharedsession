@@ -23,13 +23,14 @@ The repo is two things:
   door between them, a shared switch, a wave and a log.
 
 Published at https://ariamokr.github.io/layersharedsession/ from `main` of
-AriaMoKr/layersharedsession by `.github/workflows/pages.yml` (`npm ci`, `npm test`, then `public/`).
+AriaMoKr/layersharedsession by `.github/workflows/pages.yml`, which calls common's
+(`AriaMoKr/common/.github/workflows/pages.yml@v0.5.0`: Node 24, `npm ci`, `npm test`, then `public/`).
 
 ## Commands
 
 ```bash
-npm install   # postinstall: tools/vendor.mjs copies three and Trystero (@trystero-p2p/core, @trystero-p2p/nostr, @noble/secp256k1) into public/vendor/ (gitignored); does nothing when installed as a dependency
-npm start     # tools/serve.mjs: public/ on http://localhost:8092/ (IPv6 only on Windows; for a Quest or phone over adb reverse: npm start -- --host 127.0.0.1)
+npm install   # postinstall: tools/vendor.mjs, common's vendor copy, copies what vendor.json lists (three, and Trystero: @trystero-p2p/core, @trystero-p2p/nostr, @noble/secp256k1) into public/vendor/ (gitignored); does nothing when installed as a dependency
+npm start     # tools/serve.mjs, common's dev server: public/ on http://localhost:8092/ (IPv6 only on Windows; for a Quest or phone over adb reverse: npm start -- --host 127.0.0.1)
 npm test      # node --test "test/*.test.js"
 npm run types # tools/types.mjs: the .d.ts beside each exported module, from its JSDoc (tsconfig.json); commit them
 ```
@@ -83,6 +84,12 @@ server, outside and its Quest server), so they can all run side by side.
   rooms. `world.js` builds the scene, the layer's `avatars.js` draws the others, `controls.js`
   moves the viewer (desktop, touch, XR; `hands` for readPose), and `ui.js` is the panel and the
   log.
+- `tools/serve.mjs` and `tools/vendor.mjs` are common's (`github:AriaMoKr/common#v0.5.0`, a
+  devDependency; its README, "The tools"): the port in two lines, and the vendor copy behind a
+  check on `process.cwd()`. Under a site's `node_modules` common isn't installed for this package
+  (a site may have its own copy beside it, or none), so the check must come before the import; the
+  file stays in `files` for the postinstall. Move common's tag in package.json and `pages.yml`
+  together.
 - `tools/types.mjs` makes the `.d.ts` with TypeScript's API rather than `tsc`, which would take
   the last ones as inputs. `test/types.test.js` checks they're in step, and type-checks
   `test/types/site.ts`, a strict TypeScript site written as breadboard uses the layer, against

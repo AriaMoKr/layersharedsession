@@ -58,8 +58,8 @@ Times in the log are seconds since the page began loading. Measurements are in y
 ## Running it
 
 ```bash
-npm install     # three.js and Trystero, copied into public/vendor/
-npm start       # http://localhost:8092/
+npm install     # three.js and Trystero, copied into public/vendor/ as vendor.json lists
+npm start       # http://localhost:8092/, common's dev server
 npm test
 ```
 
@@ -84,8 +84,8 @@ pages: https, or `http://localhost`. A phone opening `http://192.168.x.x:8092` w
   server with `npm start -- --host 127.0.0.1`: `localhost` there can mean IPv6 only, which the
   headset can't reach.
 - **Anywhere:** use the published copy, https://ariamokr.github.io/layersharedsession/. Every push
-  to `main` publishes `public/` there, through `.github/workflows/pages.yml`, after `npm ci` and
-  `npm test`.
+  to `main` publishes `public/` there, through `.github/workflows/pages.yml`, which calls common's
+  Pages workflow: `npm ci` and `npm test` on Node 24, then `public/` as it is.
 
 Test across real networks too, for example a phone on mobile data and a PC on home Wi-Fi. A local
 page and the published one can be in the same room: Trystero finds peers by the app id and the
@@ -279,7 +279,7 @@ site in TypeScript also needs `@types/three`.
 
 ## Using the layer in another site
 
-As hallway does (its `together.js`, `tools/vendor.mjs` and `index.html`):
+As hallway does (its `together.js`, `vendor.json` and `index.html`):
 
 1. **Install it** from GitHub at a tagged version (or a commit), with Trystero and three:
 
@@ -299,8 +299,18 @@ As hallway does (its `together.js`, `tools/vendor.mjs` and `index.html`):
 
 2. **Vendor it** like three.js: copy `layersharedsession/public/js/*.js`,
    `@trystero-p2p/core/dist/*.mjs`, `@trystero-p2p/nostr/dist/index.mjs` and
-   `@noble/secp256k1/index.js` into the site's vendor folder. Then map the bare names in its
-   import map (`avatars.js` imports `three`, which the import map already has):
+   `@noble/secp256k1/index.js` into the site's vendor folder. With common's `tools/vendor.mjs`,
+   these are the entries in the site's `vendor.json`:
+
+   ```json
+   { "dir": "layersharedsession/public/js", "to": "layersharedsession", "ext": ".js" },
+   { "dir": "@trystero-p2p/core/dist", "to": "trystero-core", "ext": ".mjs" },
+   { "from": "@trystero-p2p/nostr/dist/index.mjs", "to": "trystero-nostr/index.mjs" },
+   { "from": "@noble/secp256k1/index.js", "to": "noble-secp256k1/index.js" }
+   ```
+
+   Then map the bare names in its import map (`avatars.js` imports `three`, which the import map
+   already has):
 
    ```json
    {"imports":{
@@ -367,7 +377,12 @@ page, so a round trip measured before someone's hello no longer makes a "came in
   `pages.js` defines the two pages and the app id (`APP_ID`). The other visitors are the layer's
   `avatars.js`, as on the sites.
 - Each page's import map points `three`, `trystero`, `@trystero-p2p/core` and `@noble/secp256k1`
-  at `public/vendor/`, which `tools/vendor.mjs` fills on `npm install`. There is no bundler.
+  at `public/vendor/`, which `tools/vendor.mjs` fills on `npm install` with what `vendor.json`
+  lists. There is no bundler.
+- The tools are common's ([common](https://github.com/AriaMoKr/common), a devDependency, README
+  "The tools"): `tools/serve.mjs` is its dev server on port 8092, and `tools/vendor.mjs` its vendor
+  copy. That one checks first that it isn't under a site's `node_modules`, where this package is
+  installed with no common of its own and has nothing to serve: there it does nothing.
 - `window.__lss` gives scripts the controller (`together`), the session, the scene and `tick(dt, n)`
   to drive frames in a hidden browser.
 
